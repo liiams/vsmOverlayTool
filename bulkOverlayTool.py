@@ -11,11 +11,19 @@ vsmPassword = input("Please enter the password: ")
 loginPayload = {"username":vsmUsername,"password":vsmPassword}
 
 
-def getCamByServer(serverName):
-    serverFilter = {"filter":{"byNameContains":serverName,"pageInfo":{"start":0,"limit":100}}}
-    serverReq = s.post('https://{0}/ismserver/json/server/v3_1/getServers'.format(vsmIp), json=serverFilter, verify=False)
-    serverResp = json.loads(serverReq.text)
-    return serverResp
+def getCamByLocation(locationName):
+    serverFilter = {"filter":{"byLocationType":"DEFAULT","byLocalNameContains":locationName}}
+    locationReq = s.post('https://{0}/ismserver/json/location/v3_1/getLocations'.format(vsmIp), json=serverFilter, verify=False)
+    locationResp = json.loads(locationReq.text)
+    print("\n=======Printing cam by server function=========\n")
+    print(json.dumps(locationResp, indent=1))
+    for item in locationResp['data']['items']:
+        locationUid = []
+        locationUid.append(item['uid'])
+    camFilter = {"filter":{"byLocationUids":locationUid,"pageInfo":{"start":0,"limit":100}}}
+    getCameras = s.post('https://{0}/ismserver/json/camera/v3_1/getCameras'.format(vsmIp), json=camFilter, verify=False)
+    cameraResp = json.loads(getCameras.text)
+    return cameraResp
 
 def getCameraDetails(cUid,camName,objectType,vsomUid):
     getCamPayload = {"cameraRef":{"refUid":cUid,"refName":camName,"refObjectType":objectType,"refVsomUid":vsomUid}}
@@ -36,9 +44,9 @@ def checkRunningJobs():   #My intent with this function - if there are more than
             if jobsList['data']['pendingJobsCount'] >= 10:
                 print("\n==========================\nToo many pending jobs, sleep 5 seconds and try again!!!\n====================")
                 time.sleep(5)
-            else:
-                runningJobs == False
-                return
+        else:
+            runningJobs == False
+            return
 
 
 def setCameraOverlay(camDetail):
@@ -48,7 +56,7 @@ def setCameraOverlay(camDetail):
 
     camDetail.update(overlay)
     setOverlayPayload = {"Device":camDetail,"addtlCameraActions":[]}
-    print("Printing the overlay payload we're gonna send: {0}".format(setOverlayPayload))
+    #print("Printing the overlay payload we're gonna send: {0}".format(setOverlayPayload))
     updateOverlayReq = s.post('https://{0}/ismserver/json/camera/v3_1/updateCamera'.format(vsmIp), json=setOverlayPayload, verify=False)
     updateResp = json.loads(updateOverlayReq.text)
     if updateResp['status']['errorType'] == "SUCCESS":
@@ -58,37 +66,31 @@ def setCameraOverlay(camDetail):
         error =  "Something must have went wrong here."
         print(error)
 
-print("This tool will apply text overlays in bulk.  To make the job managegeable, we go by Media Server.\n")
-print("Since not all media servers are connected all the time, you will input the name of the media server you want to start with.")
+print("This tool will apply text overlays in bulk.  To make the job managegeable, we go by camera location.\n")
+print("Since not all media servers are connected all the time, you will input the name of the location you want to start with.")
 print("Don't typo the name.  Error handling is nonexistant for the time being!!!")
 
-serverNameInput = str(input("Enter server name: "))
+location = str(input("Enter exact location name: "))
 
 print("\n\n")
-print("Got your server name, now going to get list of cameras.")
+print("Got your location name, now going to get list of cameras.")
 s.post('https://{0}/ismserver/json/authentication/login'.format(vsmIp), json=loginPayload, verify=False)
 
-serverList = getCamByServer(serverNameInput)
-
-if serverList['data']['totalRows'] > 1:
-    print("We got more than 1 response, and now I'm broken!")
+cameraList = getCamByLocation(location)
 
 print("\n\n\n\nNow we're gonna loop through each camera, and apply the camera name as the overlay.\n\n")
-
-for item in serverList['data']['items']:
-    #print("Cameras we pulled to attempt setting overlay on below!\n")
-    #print(json.dumps(item['retentionInfos'], indent=1))
-    for d in item['retentionInfos']:
+if cameraList['data']['totalRows'] == 0:
+    print("Something is wrong, we got no cameras!")
+else:
+    for item in cameraList['data']['items']:
         runningJobs = True
-        cUid = d['cameraRef']['refUid']
-        vsomUid = d['cameraRef']['refVsomUid']
-        objectType = d['cameraRef']['refObjectType']
-        camName = d['cameraRef']['refName']
+        cUid = item['uid']
+        vsomUid = item['vsomUid']
+        objectType = item['objectType']
+        camName = item['name']
         camDetail = getCameraDetails(cUid, camName, objectType, vsomUid)
         setOverlay = setCameraOverlay(camDetail)
         #Now check running jobs.  I'm worried that VSOM really doesn't handle jobs well.  And I do not want to queue 500 of these jobs, as
         #any more than 5 running jobs puts VSOM in like a blocking state, all new jobs are queued.  Is a pain.
         checkRunningJobs()
-        time.sleep(2)
-
-        #print(setOverlay)
+        time.sleep(1)
