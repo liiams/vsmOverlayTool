@@ -1,15 +1,15 @@
 import json
 import requests
 import time
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-
-s = requests.Session()
-print("Some setup tasks first!!")
-vsmIp = str(input("Please enter the VSOM IP Address: "))  #Didn't test, but want to make sure the IP entered is stored as a string, dont' want python to guess.
-vsmUsername = input("Please enter username: ")
-vsmPassword = input("Please enter the password: ")
-loginPayload = {"username":vsmUsername,"password":vsmPassword}
-
+def getYorN(prompt):
+    while True:
+        try:
+            return {"Y":True,"N":False}[input(prompt).lower()]
+        except KeyError:
+            print("Invalid input, please enter 'Y' or 'N'!")
 
 def getCamByLocation(locationName):
     serverFilter = {"filter":{"byLocationType":"DEFAULT","byLocalNameContains":locationName}}
@@ -33,6 +33,7 @@ def getCameraDetails(cUid,camName,objectType,vsomUid):
     return camDetail
 
 def checkRunningJobs():   #My intent with this function - if there are more than 10 queued jobs, I need to wait for that number to come down before running my below loop farther.
+    runningJobs = True
     while runningJobs == True:
         print("\n===========================================\n")
         print("Checking running jobs.")
@@ -41,6 +42,7 @@ def checkRunningJobs():   #My intent with this function - if there are more than
         print("\nCurrent running jobs: {0}\nCurrent pending jobs: {1}".format(jobsList['data']['runningJobsCount'],jobsList['data']['pendingJobsCount']))
         if jobsList['data']['runningJobsCount'] >= 5:
             print("\nRunning jobs full, checking queue!")
+            time.sleep(5)
             if jobsList['data']['pendingJobsCount'] >= 10:
                 print("\n==========================\nToo many pending jobs, sleep 5 seconds and try again!!!\n====================")
                 time.sleep(5)
@@ -50,7 +52,7 @@ def checkRunningJobs():   #My intent with this function - if there are more than
 
 
 def setCameraOverlay(camDetail):
-    print(camDetail)
+    #print(camDetail)  #Prints camera payload before adding overlay specific parameters!
     overlayText = camDetail['name']
     overlay = {"additionalCameraSettings":{"textOverlaySetting":{"overlayPlacement":"BOTTOM_OF_IMAGE","timeStampEnabled":True,"timeStampAlignment":"CENTER","textDisplayEnabled":True,"textAlignment":"CENTER","displayText":overlayText}}}
 
@@ -66,31 +68,39 @@ def setCameraOverlay(camDetail):
         error =  "Something must have went wrong here."
         print(error)
 
-print("This tool will apply text overlays in bulk.  To make the job managegeable, we go by camera location.\n")
-print("Since not all media servers are connected all the time, you will input the name of the location you want to start with.")
-print("Don't typo the name.  Error handling is nonexistant for the time being!!!")
+def mainLoop():
+    print("To quit, just use ctrl+c!")
+    location = str(input("Enter exact location name: "))
+    s.post('https://{0}/ismserver/json/authentication/login'.format(vsmIp), json=loginPayload, verify=False)
+    cameraList = getCamByLocation(location)
+    if cameraList['data']['totalRows'] == 0:
+        print("Something is wrong, we got no cameras!")
+    else:
+        for item in cameraList['data']['items']:
+            runningJobs = True
+            if item['operState'] != "ok":
+                camName = item['name']
+                print("\n\n\n******************************Camera {0} appears disabled or in error, skipping it!********************".format(camName))
+            else:
+                cUid = item['uid']
+                vsomUid = item['vsomUid']
+                objectType = item['objectType']
+                camName = item['name']
+                camDetail = getCameraDetails(cUid, camName, objectType, vsomUid)
+                setOverlay = setCameraOverlay(camDetail)
+                #Now check running jobs.  I'm worried that VSOM really doesn't handle jobs well.  And I do not want to queue 500 of these jobs, as
+                #any more than 5 running jobs puts VSOM in like a blocking state, all new jobs are queued.  Is a pain.
+                checkRunningJobs()
+                time.sleep(1)
 
-location = str(input("Enter exact location name: "))
+run = True
 
-print("\n\n")
-print("Got your location name, now going to get list of cameras.")
-s.post('https://{0}/ismserver/json/authentication/login'.format(vsmIp), json=loginPayload, verify=False)
+s = requests.Session()
+print("Some setup tasks first!!")
+vsmIp = str(input("Please enter the VSOM IP Address: "))  #Didn't test, but want to make sure the IP entered is stored as a string, dont' want python to guess.
+vsmUsername = input("Please enter username: ")
+vsmPassword = input("Please enter the password: ")
+loginPayload = {"username":vsmUsername,"password":vsmPassword}
 
-cameraList = getCamByLocation(location)
-
-print("\n\n\n\nNow we're gonna loop through each camera, and apply the camera name as the overlay.\n\n")
-if cameraList['data']['totalRows'] == 0:
-    print("Something is wrong, we got no cameras!")
-else:
-    for item in cameraList['data']['items']:
-        runningJobs = True
-        cUid = item['uid']
-        vsomUid = item['vsomUid']
-        objectType = item['objectType']
-        camName = item['name']
-        camDetail = getCameraDetails(cUid, camName, objectType, vsomUid)
-        setOverlay = setCameraOverlay(camDetail)
-        #Now check running jobs.  I'm worried that VSOM really doesn't handle jobs well.  And I do not want to queue 500 of these jobs, as
-        #any more than 5 running jobs puts VSOM in like a blocking state, all new jobs are queued.  Is a pain.
-        checkRunningJobs()
-        time.sleep(1)
+while True:
+    mainLoop()
