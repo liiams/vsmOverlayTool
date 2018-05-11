@@ -7,19 +7,28 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 def getYorN(prompt):
     while True:
         try:
-            return {"Y":True,"N":False}[input(prompt).lower()]
+            return {"y":True,"n":False}[input(prompt).lower()]
         except KeyError:
             print("Invalid input, please enter 'Y' or 'N'!")
 
 def getCamByLocation(locationName):
-    serverFilter = {"filter":{"byLocationType":"DEFAULT","byLocalNameContains":locationName}}
-    locationReq = s.post('https://{0}/ismserver/json/location/v3_1/getLocations'.format(vsmIp), json=serverFilter, verify=False)
+    locationUid = []
+    locationFilter = {"filter":{"byLocationType":"DEFAULT","byLocalNameContains":locationName}}
+    locationReq = s.post('https://{0}/ismserver/json/location/v3_1/getLocations'.format(vsmIp), json=locationFilter, verify=False)
     locationResp = json.loads(locationReq.text)
-    print("\n=======Printing cam by server function=========\n")
-    print(json.dumps(locationResp, indent=1))
+    print("\n=======Printing cam by location function=========\n")
+    #print(json.dumps(locationResp, indent=1))
     for item in locationResp['data']['items']:
-        locationUid = []
         locationUid.append(item['uid'])
+    print('\n\n\n')
+    print(len(locationUid))
+    print('\n\n\n')
+    if len(locationUid) > 1:
+        keep_going = getYorN("Got more than one location. Continue?")
+        if keep_going == False:
+            print("Stopping!!!")
+            return False
+
     camFilter = {"filter":{"byLocationUids":locationUid,"pageInfo":{"start":0,"limit":100}}}
     getCameras = s.post('https://{0}/ismserver/json/camera/v3_1/getCameras'.format(vsmIp), json=camFilter, verify=False)
     cameraResp = json.loads(getCameras.text)
@@ -73,6 +82,9 @@ def mainLoop():
     location = str(input("Enter exact location name: "))
     s.post('https://{0}/ismserver/json/authentication/login'.format(vsmIp), json=loginPayload, verify=False)
     cameraList = getCamByLocation(location)
+    if cameraList == False:
+        print("Aborted!")
+        return
     if cameraList['data']['totalRows'] == 0:
         print("Something is wrong, we got no cameras!")
     else:
