@@ -109,7 +109,9 @@ def mainLoop():
             return
         if len(cameras) == 0:
             print("Something is wrong, we got no cameras!")
-        else:
+        print("We received {0} cameras to apply settings to.".format(len(cameras)))
+        continue_work = getYorN("Do you wish to continue? Y or N?")
+        if continue_work == True:
             for item in cameras:
                 runningJobs = True
                 cUid = item['uid']
@@ -126,7 +128,10 @@ def mainLoop():
                     #any more than 5 running jobs puts VSOM in like a blocking state, all new jobs are queued.  Is a pain.
                 checkRunningJobs()
                 time.sleep(1)
-        print("\n\n\nSuccessfully applied overlay to {0} devices, while {1} failed.  Scroll up for details.\n\n\n\n\n\n".format(overlay_successful,overlay_fail))
+            print("\n\n\nSuccessfully applied overlay to {0} devices, while {1} failed.  Scroll up for details.\n\n\n\n\n\n".format(overlay_successful,overlay_fail))
+        elif continue_work == False:
+            print("\n\n\nABORTING!\n\nTry entering a new location name.\n\n")
+            return
     except KeyboardInterrupt:
         print("Got SIGTERM, exiting the program!")
         sys.exit()
@@ -135,7 +140,7 @@ if __name__ == "__main__":
     #Set up requests session
     s = requests.Session()
     try:
-        overlay_verical = False
+        overlay_vertical = False
         text_horizontal = False
         time_horizontal = False
         print("Some setup tasks first!!")
@@ -144,19 +149,20 @@ if __name__ == "__main__":
         vsmPassword = getpass.getpass()
         while overlay_vertical == False:
             overlay_top_bottom = input("Will the text overlay be at the TOP or BOTTOM of the image? ").upper()
-            if overlay_top_bottom != "TOP" or overlay_top_bottom != "BOTTOM":
+            print(overlay_top_bottom)
+            if overlay_top_bottom != "TOP" and overlay_top_bottom != "BOTTOM":
                 print("Invalid input, please try again.  Valid input is either 'TOP' or 'BOTTOM'.")
             else:
                 overlay_vertical = True
         while text_horizontal == False:
             text_alignment = input("Horizontal alignment for text? 'LEFT', 'RIGHT', or 'CENTER': ").upper()
-            if text_alignment != "LEFT" or text_alignment != "RIGHT" or text_alignment != "CENTER":
+            if text_alignment != "LEFT" and text_alignment != "RIGHT" and text_alignment != "CENTER":
                 print("Please enter a valid option. 'LEFT', 'RIGHT' or 'CENTER'.")
             else:
                 text_horizontal = True
         while time_horizontal == False:
             time_stamp_alignment = input("You know the drill by now, timespamp alignment. LEFT, RIGHT, CENTER: ").upper()
-            if time_stamp_alignment != "LEFT" or time_stamp_alignment != "RIGHT" or time_stamp_alignment != "CENTER":
+            if time_stamp_alignment != "LEFT" and time_stamp_alignment != "RIGHT" and time_stamp_alignment != "CENTER":
                 print("Really man? Get in the game! LEFT, RIGHT or CENTER!")
             else:
                 time_horizontal = True
