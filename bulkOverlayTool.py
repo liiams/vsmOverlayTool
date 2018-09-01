@@ -142,7 +142,7 @@ if __name__ == "__main__":
         vsmIp = input("Please enter the VSOM IP Address: ")
         vsmUsername = input("Please enter username: ")
         vsmPassword = getpass.getpass()
-        while overlay_vertical = False:
+        while overlay_vertical == False:
             overlay_top_bottom = input("Will the text overlay be at the TOP or BOTTOM of the image? ").upper()
             if overlay_top_bottom != "TOP" or overlay_top_bottom != "BOTTOM":
                 print("Invalid input, please try again.  Valid input is either 'TOP' or 'BOTTOM'.")
